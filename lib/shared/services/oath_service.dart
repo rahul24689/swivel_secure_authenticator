@@ -2,10 +2,13 @@ import 'dart:typed_data';
 import 'package:otp/otp.dart';
 import '../models/models.dart';
 import '../../core/constants/app_constants.dart';
+import '../../core/database/dao/oauth_dao.dart';
 
 class OathService {
   static const int _defaultInterval = AppConstants.totpInterval;
   static const int _defaultDigits = AppConstants.totpDigits;
+
+  static final OAuthDao _oauthDao = OAuthDao();
 
   /// Generate TOTP code from secret
   static String generateTOTP({
@@ -252,5 +255,116 @@ class OathService {
   /// Get time step for specific time
   static int getTimeStepForTime(DateTime time, {int? interval}) {
     return (time.millisecondsSinceEpoch ~/ 1000) ~/ (interval ?? _defaultInterval);
+  }
+
+  /// Parse OATH URI from QR code
+  static Future<OAuthEntity> parseOATHUri(String uri) async {
+    try {
+      final parsedUri = Uri.parse(uri);
+
+      if (parsedUri.scheme != 'otpauth') {
+        throw Exception('Invalid OATH URI scheme');
+      }
+
+      if (parsedUri.host != 'totp' && parsedUri.host != 'hotp') {
+        throw Exception('Unsupported OATH type: ${parsedUri.host}');
+      }
+
+      final pathSegments = parsedUri.pathSegments;
+      if (pathSegments.isEmpty) {
+        throw Exception('Missing account information in OATH URI');
+      }
+
+      // Extract account name (may include issuer)
+      final accountInfo = pathSegments.first;
+      String issuer = '';
+      String accountName = accountInfo;
+
+      // Check if account info contains issuer
+      if (accountInfo.contains(':')) {
+        final parts = accountInfo.split(':');
+        issuer = parts[0];
+        accountName = parts.sublist(1).join(':');
+      }
+
+      // Extract parameters
+      final queryParams = parsedUri.queryParameters;
+      final secret = queryParams['secret'];
+      if (secret == null || secret.isEmpty) {
+        throw Exception('Missing secret in OATH URI');
+      }
+
+      // Override issuer if provided as parameter
+      if (queryParams['issuer'] != null) {
+        issuer = queryParams['issuer']!;
+      }
+
+      final digits = int.tryParse(queryParams['digits'] ?? '6') ?? 6;
+      final period = int.tryParse(queryParams['period'] ?? '30') ?? 30;
+      final algorithm = queryParams['algorithm']?.toUpperCase() ?? 'SHA1';
+
+      // Validate algorithm
+      if (!['SHA1', 'SHA256', 'SHA512'].contains(algorithm)) {
+        throw Exception('Unsupported algorithm: $algorithm');
+      }
+
+      // Create OAuth entity
+      return OAuthEntity(
+        issuer: issuer.isNotEmpty ? issuer : 'Unknown',
+        account: accountName,
+        secret: secret,
+        username: accountName, // Use account name as username for OATH tokens
+        provisionCode: '', // Not applicable for OATH tokens
+        digits: digits,
+        period: period,
+        algorithm: algorithm,
+        label: accountInfo,
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+    } catch (e) {
+      throw Exception('Failed to parse OATH URI: $e');
+    }
+  }
+
+  /// Add OATH token from parsed entity
+  static Future<int> addOATHToken(OAuthEntity oauthEntity) async {
+    try {
+      // Check if token already exists
+      final existing = await _oauthDao.getByIssuerAndAccount(
+        oauthEntity.issuer,
+        oauthEntity.account,
+      );
+
+      if (existing != null) {
+        throw Exception('OATH token already exists for this account');
+      }
+
+      // Insert new token
+      return await _oauthDao.insert(oauthEntity);
+    } catch (e) {
+      throw Exception('Failed to add OATH token: $e');
+    }
+  }
+
+  /// Generate QR code for OATH token
+  static String generateOATHUri(OAuthEntity oauth) {
+    final issuerPrefix = oauth.issuer.isNotEmpty ? '${oauth.issuer}:' : '';
+    final label = '$issuerPrefix${oauth.account}';
+
+    final uri = Uri(
+      scheme: 'otpauth',
+      host: 'totp', // Default to TOTP
+      path: '/$label',
+      queryParameters: {
+        'secret': oauth.secret,
+        'issuer': oauth.issuer,
+        'digits': oauth.digits.toString(),
+        'period': oauth.period.toString(),
+        'algorithm': oauth.algorithm,
+      },
+    );
+
+    return uri.toString();
   }
 }

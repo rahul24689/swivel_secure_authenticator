@@ -21,14 +21,16 @@ class PolicyEntityAdapter extends TypeAdapter<PolicyEntity> {
       policyId: fields[1] as String,
       content: fields[2] as String,
       description: fields[3] as String?,
-      dateIncluded: fields[4] as int?,
+      sasId: fields[4] as int,
+      createdAt: fields[5] as DateTime,
+      updatedAt: fields[6] as DateTime,
     );
   }
 
   @override
   void write(BinaryWriter writer, PolicyEntity obj) {
     writer
-      ..writeByte(5)
+      ..writeByte(7)
       ..writeByte(0)
       ..write(obj.id)
       ..writeByte(1)
@@ -38,7 +40,11 @@ class PolicyEntityAdapter extends TypeAdapter<PolicyEntity> {
       ..writeByte(3)
       ..write(obj.description)
       ..writeByte(4)
-      ..write(obj.dateIncluded);
+      ..write(obj.sasId)
+      ..writeByte(5)
+      ..write(obj.createdAt)
+      ..writeByte(6)
+      ..write(obj.updatedAt);
   }
 
   @override
@@ -61,7 +67,9 @@ PolicyEntity _$PolicyEntityFromJson(Map<String, dynamic> json) => PolicyEntity(
       policyId: json['policyId'] as String,
       content: json['content'] as String,
       description: json['description'] as String?,
-      dateIncluded: (json['dateIncluded'] as num?)?.toInt(),
+      sasId: (json['sasId'] as num).toInt(),
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      updatedAt: DateTime.parse(json['updatedAt'] as String),
     );
 
 Map<String, dynamic> _$PolicyEntityToJson(PolicyEntity instance) =>
@@ -70,5 +78,7 @@ Map<String, dynamic> _$PolicyEntityToJson(PolicyEntity instance) =>
       'policyId': instance.policyId,
       'content': instance.content,
       'description': instance.description,
-      'dateIncluded': instance.dateIncluded,
+      'sasId': instance.sasId,
+      'createdAt': instance.createdAt.toIso8601String(),
+      'updatedAt': instance.updatedAt.toIso8601String(),
     };

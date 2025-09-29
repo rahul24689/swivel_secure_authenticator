@@ -211,6 +211,14 @@ class CacheConfig {
     return get(AppConstants.prefPushEnabled, ObjectType.boolean) as bool;
   }
 
+  static Future<void> setPushResponseLog(String log) async {
+    await add('push_response_log', log, ObjectType.string);
+  }
+
+  static String getPushResponseLog() {
+    return get('push_response_log', ObjectType.string) as String? ?? '';
+  }
+
   static Future<void> setLastSync(int timestamp) async {
     await add(AppConstants.prefLastSync, timestamp, ObjectType.integer);
   }
@@ -264,5 +272,46 @@ class CacheConfig {
         await _preferences.setStringList(entry.key, value);
       }
     }
+  }
+
+  /// Get last sync time for a SAS account
+  static DateTime? getLastSyncTime(int sasId) {
+    final timestamp = _preferences.getInt('last_sync_$sasId');
+    return timestamp != null ? DateTime.fromMillisecondsSinceEpoch(timestamp) : null;
+  }
+
+  /// Set last sync time for a SAS account
+  static Future<void> setLastSyncTime(int sasId, DateTime time) async {
+    await _preferences.setInt('last_sync_$sasId', time.millisecondsSinceEpoch);
+  }
+
+  /// Get sync enabled status for a SAS account
+  static bool isSyncEnabledForAccount(int sasId) {
+    return _preferences.getBool('sync_enabled_$sasId') ?? true;
+  }
+
+  /// Set sync enabled status for a SAS account
+  static Future<void> setSyncEnabledForAccount(int sasId, bool enabled) async {
+    await _preferences.setBool('sync_enabled_$sasId', enabled);
+  }
+
+  /// Get auto sync interval in minutes
+  static int getAutoSyncInterval() {
+    return _preferences.getInt('auto_sync_interval') ?? 30; // Default 30 minutes
+  }
+
+  /// Set auto sync interval in minutes
+  static Future<void> setAutoSyncInterval(int minutes) async {
+    await _preferences.setInt('auto_sync_interval', minutes);
+  }
+
+  /// Check if auto sync is enabled
+  static bool isAutoSyncEnabled() {
+    return _preferences.getBool('auto_sync_enabled') ?? false;
+  }
+
+  /// Set auto sync enabled status
+  static Future<void> setAutoSyncEnabled(bool enabled) async {
+    await _preferences.setBool('auto_sync_enabled', enabled);
   }
 }

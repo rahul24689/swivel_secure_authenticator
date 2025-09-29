@@ -43,17 +43,18 @@ dependencies:
   otp: ^3.1.4
   mobile_scanner: ^5.0.1
   qr_flutter: ^4.1.0
+  permission_handler: ^11.3.1
 
   # Firebase
   firebase_core: ^3.8.0
   firebase_messaging: ^15.1.4
   firebase_analytics: ^11.3.4
   firebase_crashlytics: ^4.1.4
+  flutter_local_notifications: ^17.2.2
 
   # Device and Platform
   device_info_plus: ^10.1.2
   package_info_plus: ^8.1.0
-  permission_handler: ^11.3.1
   url_launcher: ^6.3.1
 
   # Utilities

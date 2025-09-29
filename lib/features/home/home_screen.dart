@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import '../../core/constants/app_constants.dart';
 import '../../shared/widgets/custom_app_bar.dart';
 import '../../shared/widgets/security_status_widget.dart';
+import '../../shared/services/sync_service.dart';
 import '../settings/settings_screen.dart';
+import '../qr_scanner/qr_scanner_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -80,21 +82,28 @@ class _HomeScreenState extends State<HomeScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Add Authentication'),
-        content: const Text('Choose authentication type to add:'),
+        content: const Text('Choose how to add authentication:'),
         actions: [
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _addSecurityString();
+              _scanQRCode(QRScanType.oath);
             },
-            child: const Text('Security String'),
+            child: const Text('Scan OATH QR'),
           ),
           TextButton(
             onPressed: () {
               Navigator.pop(context);
-              _addOATH();
+              _scanQRCode(QRScanType.provision);
             },
-            child: const Text('OATH Token'),
+            child: const Text('Scan Provision QR'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _addManually();
+            },
+            child: const Text('Add Manually'),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context),
@@ -140,6 +149,78 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
+  void _scanQRCode(QRScanType scanType) async {
+    try {
+      final result = await Navigator.push<dynamic>(
+        context,
+        MaterialPageRoute(
+          builder: (context) => QRScannerScreen(scanType: scanType),
+        ),
+      );
+
+      if (result != null && mounted) {
+        String message;
+        switch (scanType) {
+          case QRScanType.oath:
+            message = 'OATH token added successfully';
+            break;
+          case QRScanType.provision:
+            message = 'Account provisioned successfully';
+            break;
+          case QRScanType.securityString:
+            message = 'Security string added successfully';
+            break;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: Colors.green,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to scan QR code: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  void _addManually() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Add Manually'),
+        content: const Text('Choose authentication type to add manually:'),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _addSecurityString();
+            },
+            child: const Text('Security String'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _addOATH();
+            },
+            child: const Text('OATH Token'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _addSecurityString() {
     // Navigate to security string tab
     setState(() {
@@ -154,10 +235,63 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
-  void _syncData() {
+  void _syncData() async {
+    if (!mounted) return;
+
+    // Show loading indicator
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Sync - Coming Soon')),
+      const SnackBar(
+        content: Row(
+          children: [
+            SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            SizedBox(width: 16),
+            Text('Syncing...'),
+          ],
+        ),
+        duration: Duration(seconds: 30),
+      ),
     );
+
+    try {
+      final syncResult = await SyncService.instance.syncAllTokenIndexes();
+
+      if (!mounted) return;
+
+      // Hide loading snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      if (syncResult.success) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(syncResult.message ?? 'Sync completed successfully'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(syncResult.error ?? 'Sync failed'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+
+      // Hide loading snackbar
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Sync failed: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   void _backupData() {

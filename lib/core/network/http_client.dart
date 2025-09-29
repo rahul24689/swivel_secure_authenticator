@@ -3,8 +3,10 @@ import 'dart:io' as io;
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:flutter/foundation.dart';
 import '../constants/app_constants.dart';
 import '../utils/cache_config.dart';
+import '../security/certificate_pinning_service.dart';
 
 class HttpClient {
   static Dio? _dio;
@@ -36,8 +38,8 @@ class HttpClient {
     dio.interceptors.add(_createErrorInterceptor());
     dio.interceptors.add(_createRetryInterceptor());
 
-    // Configure certificate validation
-    _configureCertificateValidation(dio);
+    // Configure certificate pinning
+    _configureCertificatePinning(dio);
 
     return dio;
   }
@@ -105,16 +107,33 @@ class HttpClient {
     );
   }
 
-  static void _configureCertificateValidation(Dio dio) {
+  static void _configureCertificatePinning(Dio dio) {
     if (dio.httpClientAdapter is IOHttpClientAdapter) {
       (dio.httpClientAdapter as IOHttpClientAdapter).createHttpClient = () {
         final client = io.HttpClient();
 
-        // Configure certificate validation
+        // Configure certificate pinning
         client.badCertificateCallback = (cert, host, port) {
-          // In production, implement proper certificate validation
-          // For now, allow all certificates (similar to Android version)
-          return true;
+          // Use certificate pinning service for validation
+          final pinningService = CertificatePinningService.instance;
+
+          // Validate certificate pinning
+          final isPinValid = pinningService.validateCertificate(cert, host);
+
+          // Validate hostname
+          final isHostnameValid = pinningService.validateHostname(cert, host);
+
+          // Check certificate expiry
+          final isNotExpired = !pinningService.isCertificateExpired(cert);
+
+          final isValid = isPinValid && isHostnameValid && isNotExpired;
+
+          if (!isValid && kDebugMode) {
+            debugPrint('Certificate validation failed for $host:$port');
+            debugPrint('Pin valid: $isPinValid, Hostname valid: $isHostnameValid, Not expired: $isNotExpired');
+          }
+
+          return isValid;
         };
 
         return client;

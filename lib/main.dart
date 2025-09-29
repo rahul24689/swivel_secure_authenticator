@@ -4,6 +4,8 @@ import 'package:provider/provider.dart';
 import 'core/security/security_manager.dart';
 import 'core/utils/cache_config.dart';
 import 'core/constants/app_constants.dart';
+import 'core/logging/logging_service.dart';
+import 'core/error/error_handler.dart';
 import 'features/splash/splash_screen.dart';
 import 'shared/theme/app_theme.dart';
 import 'shared/providers/auth_provider.dart';
@@ -21,6 +23,9 @@ void main() async {
 
 Future<void> _initializeServices() async {
   try {
+    // Initialize logging service first
+    await LoggingService.instance.initialize();
+
     // Initialize cache configuration
     await CacheConfig.initialize();
 
@@ -45,9 +50,22 @@ Future<void> _initializeServices() async {
         systemNavigationBarIconBrightness: Brightness.dark,
       ),
     );
-  } catch (e) {
+  } catch (e, stackTrace) {
     // Log initialization error
     debugPrint('Failed to initialize services: $e');
+
+    // Try to log to logging service if it was initialized
+    try {
+      LoggingService.instance.fatal(
+        'AppInitialization',
+        'Failed to initialize core services',
+        error: e,
+        stackTrace: stackTrace,
+      );
+    } catch (_) {
+      // Logging service not available, continue with debug print
+      debugPrint('Stack trace: $stackTrace');
+    }
   }
 }
 

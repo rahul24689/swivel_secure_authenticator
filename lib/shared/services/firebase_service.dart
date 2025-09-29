@@ -174,15 +174,21 @@ class FirebaseService {
 
   /// Handle push authentication
   void _handlePushAuthentication(PushDto pushDto) {
-    // This would typically show a dialog or navigate to a screen
-    // For now, just log the event
     debugPrint('Push authentication request: ${pushDto.pushId}');
+    // The actual handling is now done by PushNotificationService
+    // This method is kept for backward compatibility
   }
 
   /// Navigate to push authentication
   void _navigateToPushAuthentication(PushDto pushDto) {
-    // This would navigate to the push authentication screen
     debugPrint('Navigate to push authentication: ${pushDto.pushId}');
+    // The actual navigation is now handled by PushNotificationService
+    // This method is kept for backward compatibility
+  }
+
+  /// Set notification callback for external handling
+  void setNotificationCallback(Function(RemoteMessage) callback) {
+    _notificationCallback = callback;
   }
 
   /// Get FCM token
@@ -269,10 +275,7 @@ class FirebaseService {
     }
   }
 
-  /// Set notification callback
-  void setNotificationCallback(Function(RemoteMessage) callback) {
-    _notificationCallback = callback;
-  }
+
 
   /// Get stored notifications
   List<RemoteMessage> getStoredNotifications() {
