@@ -1,7 +1,10 @@
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
 import '../../shared/services/oath_service.dart';
+import '../../shared/services/ss_detail_service_impl.dart';
 import '../../shared/models/models.dart';
 
 class QRScannerScreen extends StatefulWidget {
@@ -328,29 +331,26 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
 
   Future<void> _processProvisionCode(String code) async {
     try {
-      // Parse provision QR code format
-      final parts = code.split('|');
-      if (parts.length < 3) {
-        throw Exception('Invalid provision QR code format');
+      // Check if the code is base64 encoded (Swivel format)
+      if (!_isBase64(code)) {
+        throw Exception('QR Code invalid - not base64 encoded');
       }
 
-      final provisionInfo = ProvisionInfoEntity(
-        siteId: parts[0],
-        username: parts[1],
-        provisionCode: parts[2],
-      );
+      // Decode base64 and parse Swivel account format
+      final serverDetail = await _addSwivelAccount(code);
 
-      // For now, we'll just return the provision info
-      // In a full implementation, this would call the provision API
-
-      if (mounted) {
-        Navigator.pop(context, provisionInfo);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Provision QR code scanned successfully'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (serverDetail != null) {
+        if (mounted) {
+          Navigator.pop(context, serverDetail);
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Swivel account added successfully'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        throw Exception('Failed to process Swivel account');
       }
     } catch (e) {
       throw Exception('Failed to provision account: $e');
@@ -390,6 +390,59 @@ class _QRScannerScreenState extends State<QRScannerScreen> {
         ],
       ),
     );
+  }
+
+  /// Check if string is valid base64
+  bool _isBase64(String str) {
+    try {
+      // Basic base64 validation
+      final regex = RegExp(r'^[A-Za-z0-9+/]*={0,2}$');
+      return regex.hasMatch(str) && str.length % 4 == 0;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Add Swivel account from base64 QR code
+  /// Converted from addSwivelAccount method in QrCodeFragment.java
+  Future<ServerDetailDto?> _addSwivelAccount(String base64Code) async {
+    try {
+      // Decode base64
+      final bytes = base64Decode(base64Code);
+      final decodedString = utf8.decode(bytes);
+
+      // Split by '/' and get last 3 parts
+      final parts = decodedString.split('/');
+      if (parts.length < 3) {
+        throw Exception('Invalid QR code format');
+      }
+
+      final lastThreeParts = [
+        parts[parts.length - 3],
+        parts[parts.length - 2],
+        parts[parts.length - 1],
+      ];
+
+      // This would call the communication service to link the account
+      // For now, create a mock ServerDetailDto
+      final serverDetail = ServerDetailDto(
+        hostname: lastThreeParts[0],
+        port: int.tryParse(lastThreeParts[1]) ?? 8080,
+        siteId: lastThreeParts[2],
+        usingSsl: true,
+        pushSupport: true,
+        connectionType: 'HTTPS',
+      );
+
+      // Save to database using SsDetailService
+      final ssDetailService = SsDetailServiceImpl();
+      await ssDetailService.saveOrUpdate(serverDetail);
+
+      return serverDetail;
+    } catch (e) {
+      debugPrint('Error adding Swivel account: $e');
+      rethrow;
+    }
   }
 }
 
